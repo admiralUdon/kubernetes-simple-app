@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-depl
+spec:
+  selector:
+    matchLabels:
+      app: demo-app
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: demo-app
+    spec:
+      containers:
+      - name: demo-web
+        image: php:7.2-apache
+        ports:
+        - name: demo-port
+          containerPort: 80
+        volumeMounts:
+        - mountPath: /var/www/html
+          name: demo-vol
+      volumes:
+      - name: demo-vol
+        configMap:
+          name: demo-cm
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-serv
+spec:
+  ports:
+  - port: 80
+    targetPort: demo-port
+  selector:
+    app: demo-app
+  type: ClusterIP
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-cm
+data:
+  index.php: |
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Demo App</title>
+      </head>
+    <body>
+      <?php
+         $ip_server = $_SERVER['SERVER_ADDR'];
+         echo "Kubernetes Pod IP Address is: $ip_server";
+      ?>
+    </body>
+    </html>
+  test.php: |
+      <?php
+         $ip_server = $_SERVER['SERVER_ADDR'];
+         echo "Kubernetes Pod IP Address is: $ip_server";
+      ?>
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-ing
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+  - host: crm-staging.altel.my
+    http:
+      paths:
+      - path: /demo(/|$)(.*)
+#      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: demo-serv
+            port:
+              number: 80
